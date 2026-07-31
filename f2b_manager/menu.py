@@ -811,7 +811,7 @@ class InteractiveMenu:
         print(f"  Текущий Token: {C_DIM}{token[:8]}****{C_RESET}")
         print()
 
-        print(f"  {C_BOLD}【Шаг 1】Получите свой Chat ID{C_RESET}")
+        print(f"  {C_BOLD}[Шаг 1] Узнайте свой Chat ID{C_RESET}")
         print("    1. В Telegram найдите @userinfobot")
         print("    2. Отправьте любое сообщение — получите User ID")
         print()
@@ -879,7 +879,7 @@ class InteractiveMenu:
         print("  Мастер поможет настроить Telegram Bot без ручного редактирования файлов.")
         print(f"  {C_DIM}(Enter без ввода — выход из текущего шага){C_RESET}")
         print()
-        print(f"  {C_BOLD}【Шаг 1】Создайте Bot{C_RESET}")
+        print(f"  {C_BOLD}[Шаг 1] Создайте бота{C_RESET}")
         print("    1. Откройте Telegram и найдите @BotFather")
         print("    2. Отправьте /newbot и укажите имя и username бота")
         print("    3. Скопируйте Bot Token (формат: 123456789:ABCdef...)")
@@ -904,7 +904,7 @@ class InteractiveMenu:
         _print_success("Формат Token корректен")
         print()
 
-        print(f"  {C_BOLD}【Шаг 2】Получите свой Chat ID{C_RESET}")
+        print(f"  {C_BOLD}[Шаг 2] Узнайте свой Chat ID{C_RESET}")
         print("    1. В Telegram найдите @userinfobot")
         print("    2. Отправьте любое сообщение")
         print("    3. Бот ответит User ID (только цифры)")
@@ -932,7 +932,7 @@ class InteractiveMenu:
                     extra_ids.append(int(eid))
         print()
 
-        print(f"  {C_BOLD}【Шаг 3】Проверка соединения{C_RESET}")
+        print(f"  {C_BOLD}[Шаг 3] Проверка соединения{C_RESET}")
         _print_info("Отправка тестового сообщения в Telegram...")
 
         send_ok = False

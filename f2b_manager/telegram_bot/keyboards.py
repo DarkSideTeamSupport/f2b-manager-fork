@@ -57,7 +57,7 @@ def confirm_keyboard(
 # Префикс callback-данных.
 CB_F2BCFG = "f2bcfg"
 
-# Предустановленные значения.
+# Предустановки параметров
 BANTIME_PRESETS = ["10m", "30m", "1h", "2h", "6h", "12h", "1d", "7d"]
 FINDTIME_PRESETS = ["5m", "10m", "30m", "1h", "2h"]
 MAXRETRY_PRESETS = ["2", "3", "5", "10", "20"]
@@ -69,7 +69,7 @@ def f2bconfig_main_keyboard(
     incremental: bool, max_bantime: str,
 ) -> InlineKeyboardMarkup:
     """Главная панель настройки Fail2ban."""
-    inc_text = "✅ Увеличивающаяся блокировка: вкл." if incremental else "❌ Увеличивающаяся блокировка: выкл."
+    inc_text = "✅ Нарастающая блокировка: вкл." if incremental else "❌ Нарастающая блокировка: выкл."
     keyboard = [
         [InlineKeyboardButton(
             f"⏱ Срок блокировки: {bantime}", callback_data=f"{CB_F2BCFG}_bantime"
@@ -84,7 +84,7 @@ def f2bconfig_main_keyboard(
             inc_text, callback_data=f"{CB_F2BCFG}_tog_inc"
         )],
         [InlineKeyboardButton(
-            f"📈 Максимальная блокировка: {max_bantime}", callback_data=f"{CB_F2BCFG}_maxbt"
+            f"📈 Макс. срок бана: {max_bantime}", callback_data=f"{CB_F2BCFG}_maxbt"
         )],
         [
             InlineKeyboardButton(

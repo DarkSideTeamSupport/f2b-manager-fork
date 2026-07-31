@@ -161,7 +161,7 @@ async def _whitelist_add(update, context, deps) -> None:
     # Напоминаем о необходимости перезагрузки.
     if deps.f2b_manager is not None:
         await update.message.reply_text(
-            "\u2139\ufe0f Белый список сохранён. Выполните /reload, чтобы применить изменения.",
+            "\u2139\ufe0f Белый список сохранён. Выполните команду /reload, чтобы применить изменения.",
             parse_mode="HTML",
         )
 
