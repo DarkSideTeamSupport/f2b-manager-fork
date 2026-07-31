@@ -365,6 +365,8 @@ def _cmd_menu(config, args) -> int:
     except KeyboardInterrupt:
         print()
         return 0
+    except SystemExit as e:
+        return int(e.code) if isinstance(e.code, int) else 0
 
 
 if __name__ == "__main__":

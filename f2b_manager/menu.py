@@ -87,11 +87,23 @@ def _clear_screen() -> None:
 
 
 def _read_input(prompt: str, default: str = "") -> str:
-    """Считывает ввод пользователя; пустой ввод возвращает значение по умолчанию."""
-    if default:
-        raw = input(f"  {prompt} [{default}]: ")
-        return raw if raw.strip() else default
-    return input(f"  {prompt}: ")
+    """Считывает ввод пользователя; пустой ввод возвращает значение по умолчанию.
+
+    При EOF (нет TTY / закрытый stdin) — SystemExit(0), без traceback.
+    """
+    try:
+        if default:
+            raw = input(f"  {prompt} [{default}]: ")
+            return raw if raw.strip() else default
+        return input(f"  {prompt}: ")
+    except EOFError:
+        print()
+        print(
+            f"  {C_YELLOW}Нет интерактивного ввода (не TTY). "
+            f"Откройте меню позже командой: f2b{C_RESET}"
+        )
+        print()
+        raise SystemExit(0) from None
 
 
 def _read_choice(prompt: str, choices: list[str], default: int = 0) -> int:
@@ -223,6 +235,16 @@ class InteractiveMenu:
 
     def run(self) -> None:
         """Запускает основной цикл интерактивного меню."""
+        if not sys.stdin.isatty():
+            print()
+            print(
+                f"  {C_YELLOW}Меню требует интерактивный терминал "
+                f"(нельзя запускать через curl|bash).{C_RESET}"
+            )
+            print(f"  {C_YELLOW}Подключитесь по SSH и выполните: f2b{C_RESET}")
+            print()
+            return
+
         # Загрузка конфигурации
         from .config import load_config
         self._config = load_config(self._config_path)
