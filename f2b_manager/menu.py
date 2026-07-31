@@ -86,17 +86,68 @@ def _clear_screen() -> None:
     sys.stdout.flush()
 
 
+def _configure_stdio() -> None:
+    """Настроить кодировку stdin/stdout с устойчивостью к «битым» байтам.
+
+    На серверах с LANG=C или клиентом в CP1251/KOI8 input() падает с
+    UnicodeDecodeError (например, кириллическая «с» вместо латинской c).
+    """
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        except (AttributeError, OSError, ValueError):
+            pass
+
+
+def _normalize_hotkey(raw: str) -> str:
+    """Нормализовать горячую клавишу: латиница + кириллица с русской раскладки.
+
+    Физическая клавиша C при русской раскладке даёт «с», D — «в».
+    Также учитываем визуально похожие буквы (С ≈ C).
+    """
+    s = raw.strip()
+    if len(s) != 1:
+        return s.upper()
+    layout_map = {
+        "c": "C", "C": "C",
+        "с": "C", "С": "C",  # кириллическая эс (клавиша C / похожа на C)
+        "d": "D", "D": "D",
+        "в": "D", "В": "D",  # клавиша D на русской раскладке
+        "д": "D", "Д": "D",  # мнемоника «удалить»
+    }
+    return layout_map.get(s, s.upper())
+
+
+def _decode_stdin_line(raw_bytes: bytes) -> str:
+    """Декодировать строку stdin с перебором типичных кодировок."""
+    if not raw_bytes:
+        return ""
+    for enc in ("utf-8", "cp1251", "koi8-r", "latin-1"):
+        try:
+            return raw_bytes.decode(enc).rstrip("\r\n")
+        except UnicodeDecodeError:
+            continue
+    return raw_bytes.decode("utf-8", errors="replace").rstrip("\r\n")
+
+
 def _read_input(prompt: str, default: str = "") -> str:
     """Считывает ввод пользователя; пустой ввод возвращает значение по умолчанию.
 
+    Читает сырые байты из stdin.buffer — устойчиво к CP1251/KOI8 и «битому» UTF-8.
     При EOF (нет TTY / закрытый stdin) — SystemExit(0), без traceback.
     """
+    if default:
+        sys.stdout.write(f"  {prompt} [{default}]: ")
+    else:
+        sys.stdout.write(f"  {prompt}: ")
+    sys.stdout.flush()
+
     try:
-        if default:
-            raw = input(f"  {prompt} [{default}]: ")
-            return raw if raw.strip() else default
-        return input(f"  {prompt}: ")
-    except EOFError:
+        raw_bytes = sys.stdin.buffer.readline()
+    except OSError:
+        raw_bytes = b""
+
+    if not raw_bytes:
         print()
         print(
             f"  {C_YELLOW}Нет интерактивного ввода (не TTY). "
@@ -104,6 +155,11 @@ def _read_input(prompt: str, default: str = "") -> str:
         )
         print()
         raise SystemExit(0) from None
+
+    raw = _decode_stdin_line(raw_bytes)
+    if default and not raw.strip():
+        return default
+    return raw
 
 
 def _read_choice(prompt: str, choices: list[str], default: int = 0) -> int:
@@ -117,9 +173,9 @@ def _read_choice(prompt: str, choices: list[str], default: int = 0) -> int:
         if not raw:
             return default
         # Поддержка буквенных горячих клавиш
-        raw_upper = raw.upper()
+        raw_key = _normalize_hotkey(raw)
         for i, c in enumerate(choices):
-            if c == raw or (c.isalpha() and c == raw_upper):
+            if c == raw or (c.isalpha() and _normalize_hotkey(c) == raw_key):
                 return i
         try:
             num = int(raw)
@@ -245,6 +301,8 @@ class InteractiveMenu:
             print()
             return
 
+        _configure_stdio()
+
         # Загрузка конфигурации
         from .config import load_config
         self._config = load_config(self._config_path)
@@ -266,8 +324,8 @@ class InteractiveMenu:
                 print()
                 break
 
-            raw_upper = raw.upper()
-            # Буквенные горячие клавиши
+            raw_upper = _normalize_hotkey(raw)
+            # Буквенные горячие клавиши (латиница и русская раскладка)
             if raw_upper == "D":
                 self._menu_uninstall_manager()
                 continue

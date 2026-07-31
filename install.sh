@@ -211,6 +211,7 @@ cat > "$WRAPPER" <<'EOF'
 # CLI-обёртка f2b-manager
 # Установить PYTHONPATH для импорта пакета f2b_manager, затем вызвать основную программу
 export PYTHONPATH="/opt/f2b-manager:${PYTHONPATH:-}"
+export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8:replace}"
 # Без аргументов по умолчанию открывать меню управления
 if [ $# -eq 0 ]; then
     set -- menu
