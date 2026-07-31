@@ -27,6 +27,8 @@ class TelegramConfig:
     admin_chat_ids: list[int] = field(default_factory=list)
     operator_chat_ids: list[int] = field(default_factory=list)
     notify_chat_id: int = 0
+    # ID топика форума для оповещений/отчётов (0 = без топика)
+    notify_message_thread_id: int = 0
     mode: str = "polling"  # polling | webhook
     webhook_url: str = ""
     webhook_port: int = 8443
@@ -113,6 +115,7 @@ class AppConfig:
             admin_chat_ids=tg.get("admin_chat_ids", []),
             operator_chat_ids=tg.get("operator_chat_ids", []),
             notify_chat_id=tg.get("notify_chat_id", 0),
+            notify_message_thread_id=int(tg.get("notify_message_thread_id", 0) or 0),
             mode=tg.get("mode", "polling"),
             webhook_url=tg.get("webhook", {}).get("url", ""),
             webhook_port=tg.get("webhook", {}).get("port", 8443),
@@ -210,6 +213,7 @@ class AppConfig:
             "admin_chat_ids": self.telegram.admin_chat_ids,
             "operator_chat_ids": self.telegram.operator_chat_ids,
             "notify_chat_id": self.telegram.notify_chat_id,
+            "notify_message_thread_id": self.telegram.notify_message_thread_id,
             "mode": self.telegram.mode,
         }
         if self.telegram.mode == "webhook":

@@ -224,23 +224,30 @@ class F2BTelegramBot(IMessageSender):
         chat_id: int,
         message: str,
         parse_mode: str = "HTML",
+        message_thread_id: Optional[int] = None,
     ) -> bool:
         """Отправляет оповещение (вызывается модулем notify).
 
         Реализация IMessageSender.send_alert.
+        Для notify_chat_id автоматически подставляет notify_message_thread_id.
         """
         if self._application is None:
             logger.warning("Bot не собран (нет token), оповещение отправить нельзя")
             return False
 
+        thread_id = self._resolve_thread_id(chat_id, message_thread_id)
+
         try:
             bot = self._application.bot
-            await bot.send_message(
-                chat_id=chat_id,
-                text=message,
-                parse_mode=parse_mode,
-                disable_web_page_preview=True,
-            )
+            kwargs: dict = {
+                "chat_id": chat_id,
+                "text": message,
+                "parse_mode": parse_mode,
+                "disable_web_page_preview": True,
+            }
+            if thread_id:
+                kwargs["message_thread_id"] = thread_id
+            await bot.send_message(**kwargs)
             return True
         except Forbidden:
             logger.warning("Пользователь %s заблокировал Bot, оповещение не отправлено", chat_id)
@@ -256,23 +263,30 @@ class F2BTelegramBot(IMessageSender):
         self,
         chat_id: int,
         message: str,
+        message_thread_id: Optional[int] = None,
     ) -> bool:
         """Отправляет отчёт (вызывается модулем scheduler).
 
         Реализация IMessageSender.send_report.
+        Для notify_chat_id автоматически подставляет notify_message_thread_id.
         """
         if self._application is None:
             logger.warning("Bot не собран (нет token), отчёт отправить нельзя")
             return False
 
+        thread_id = self._resolve_thread_id(chat_id, message_thread_id)
+
         try:
             bot = self._application.bot
-            await bot.send_message(
-                chat_id=chat_id,
-                text=message,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
+            kwargs: dict = {
+                "chat_id": chat_id,
+                "text": message,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            }
+            if thread_id:
+                kwargs["message_thread_id"] = thread_id
+            await bot.send_message(**kwargs)
             return True
         except Forbidden:
             logger.warning("Пользователь %s заблокировал Bot, отчёт не отправлен", chat_id)
@@ -283,6 +297,19 @@ class F2BTelegramBot(IMessageSender):
         except TelegramError as e:
             logger.error("Не удалось отправить отчёт: %s", e)
             return False
+
+    def _resolve_thread_id(
+        self,
+        chat_id: int,
+        message_thread_id: Optional[int],
+    ) -> Optional[int]:
+        """Выбрать message_thread_id: явный аргумент или из конфига для notify."""
+        if message_thread_id:
+            return message_thread_id
+        if chat_id == self.config.telegram.notify_chat_id:
+            tid = self.config.telegram.notify_message_thread_id
+            return tid if tid else None
+        return None
 
     # ──────────────────────────────────────────
     # Жизненный цикл

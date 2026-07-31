@@ -282,10 +282,12 @@ class AlertSender:
                 logger.warning("notify_chat_id не задан, отправка невозможна")
                 return False
 
+            thread_id = self._config.telegram.notify_message_thread_id or None
             return await self._bot.send_alert(
                 chat_id=chat_id,
                 message=message,
                 parse_mode="HTML",
+                message_thread_id=thread_id,
             )
         except Exception as e:
             logger.error("Не удалось отправить сообщение: %s", e)

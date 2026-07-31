@@ -41,20 +41,28 @@ class _CliBotSender:
         self._NetworkError = NetworkError
         self._TelegramError = TelegramError
 
-    async def send_alert(self, chat_id: int, message: str,
-                         parse_mode: str = "HTML") -> bool:
+    async def send_alert(
+        self,
+        chat_id: int,
+        message: str,
+        parse_mode: str = "HTML",
+        message_thread_id: Optional[int] = None,
+    ) -> bool:
         """Отправить предупреждение в указанный chat_id.
 
         Поведение как у F2BTelegramBot.send_alert(): Forbidden — только warning,
         сетевые/API ошибки — error; всегда возвращает bool.
         """
         try:
-            await self._bot.send_message(
-                chat_id=chat_id,
-                text=message,
-                parse_mode=parse_mode,
-                disable_web_page_preview=True,
-            )
+            kwargs: dict = {
+                "chat_id": chat_id,
+                "text": message,
+                "parse_mode": parse_mode,
+                "disable_web_page_preview": True,
+            }
+            if message_thread_id:
+                kwargs["message_thread_id"] = message_thread_id
+            await self._bot.send_message(**kwargs)
             return True
         except self._Forbidden:
             self._logger.warning(
@@ -69,7 +77,12 @@ class _CliBotSender:
             self._logger.error("Не удалось отправить оповещение: %s", e)
             return False
 
-    async def send_report(self, chat_id: int, message: str) -> bool:
+    async def send_report(
+        self,
+        chat_id: int,
+        message: str,
+        message_thread_id: Optional[int] = None,
+    ) -> bool:
         """В CLI send_report не нужен — только для соответствия IMessageSender."""
         self._logger.debug("send_report в режиме CLI не поддерживается")
         return False

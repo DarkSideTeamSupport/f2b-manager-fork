@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable
 
 
 # ──────────────────────────────────────────────
@@ -216,12 +216,22 @@ class IFail2banInstaller(Protocol):
 class IMessageSender(Protocol):
     """Интерфейс отправки сообщений (реализация M2 Bot, вызов из M3/M4)"""
 
-    async def send_alert(self, chat_id: int, message: str,
-                         parse_mode: str = "HTML") -> bool:
+    async def send_alert(
+        self,
+        chat_id: int,
+        message: str,
+        parse_mode: str = "HTML",
+        message_thread_id: Optional[int] = None,
+    ) -> bool:
         """Отправить предупреждающее сообщение"""
         ...
 
-    async def send_report(self, chat_id: int, message: str) -> bool:
+    async def send_report(
+        self,
+        chat_id: int,
+        message: str,
+        message_thread_id: Optional[int] = None,
+    ) -> bool:
         """Отправить сообщение с отчётом"""
         ...
 
