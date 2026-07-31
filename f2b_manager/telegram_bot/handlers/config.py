@@ -69,7 +69,7 @@ async def cmd_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # Без параметров: показываем текущий белый список.
     if not context.args:
-        _show_whitelist(update, deps)
+        await _show_whitelist(update, deps)
         return
 
     sub = context.args[0].lower()
