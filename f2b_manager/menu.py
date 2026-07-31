@@ -195,6 +195,46 @@ def _confirm(prompt: str) -> bool:
     return raw in ("y", "yes", "да")
 
 
+_CHAT_ID_RE = re.compile(r"^-?\d+$")
+
+
+def _parse_telegram_chat_id(raw: str) -> Optional[int]:
+    """Разобрать Telegram chat_id: личный (>0) или канал/группа (<0, напр. -100…)."""
+    text = raw.strip()
+    if not text or not _CHAT_ID_RE.fullmatch(text):
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
+def _parse_chat_id_list(raw: str) -> list[int]:
+    """Разобрать список chat_id через запятую."""
+    result: list[int] = []
+    for part in raw.split(","):
+        cid = _parse_telegram_chat_id(part)
+        if cid is not None:
+            result.append(cid)
+    return result
+
+
+def _send_telegram_test(token: str, chat_id: int, text: str) -> tuple[bool, str]:
+    """Отправить тестовое сообщение. Возвращает (ok, описание ошибки)."""
+    try:
+        resp = httpx.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=10,
+        )
+        data = resp.json() if resp.status_code == 200 else {}
+        if data.get("ok"):
+            return True, ""
+        return False, str(data.get("description", resp.text[:200]))
+    except Exception as e:
+        return False, str(e)
+
+
 def _compare_versions(a: str, b: str) -> int:
     """Сравнивает два номера версий.
 
@@ -883,7 +923,7 @@ class InteractiveMenu:
             self._run_telegram_chatid_only()
 
     def _run_telegram_chatid_only(self) -> None:
-        """Изменяет только Chat ID."""
+        """Изменяет Chat ID администратора и получателя оповещений."""
         _clear_screen()
         _print_header("Изменение Telegram Chat ID")
 
@@ -891,54 +931,94 @@ class InteractiveMenu:
         print(f"  Текущий Token: {C_DIM}{token[:8]}****{C_RESET}")
         print()
 
-        print(f"  {C_BOLD}[Шаг 1] Узнайте свой Chat ID{C_RESET}")
+        print(f"  {C_BOLD}[Шаг 1] Личный Chat ID администратора{C_RESET}")
         print("    1. В Telegram найдите @userinfobot")
         print("    2. Отправьте любое сообщение — получите User ID")
+        print("    Нужен личный ID (положительное число) для команд боту")
         print()
 
         while True:
-            raw = _read_input("Введите ваш Chat ID (только цифры, Enter — отмена)").strip()
+            raw = _read_input(
+                "Chat ID администратора (число, Enter — отмена)"
+            ).strip()
             if not raw:
                 print(f"  {C_DIM}Отменено{C_RESET}")
                 _read_input("Нажмите Enter для возврата")
                 return
-            if raw.isdigit():
+            chat_id = _parse_telegram_chat_id(raw)
+            if chat_id is not None:
                 break
-            _print_error("Chat ID должен состоять только из цифр")
-        chat_id = int(raw)
+            _print_error("Ожидается число, например 6469544279 или -100… для канала")
+        if chat_id < 0:
+            _print_warning(
+                "Отрицательный ID — канал/группа. Для команд удобнее личный User ID."
+            )
 
-        extra = _read_input("Доп. Chat ID операторов (необязательно, Enter — пропуск)").strip()
-        extra_ids = []
-        if extra:
-            for eid in extra.split(","):
-                eid = eid.strip()
-                if eid.isdigit():
-                    extra_ids.append(int(eid))
+        extra = _read_input(
+            "Доп. Chat ID операторов (через запятую, Enter — пропуск)"
+        ).strip()
+        extra_ids = _parse_chat_id_list(extra) if extra else []
+
+        print()
+        print(f"  {C_BOLD}[Шаг 2] Куда слать оповещения и отчёты{C_RESET}")
+        print("    Личный чат, группа или канал.")
+        print("    Для канала: добавьте бота администратором канала,")
+        print("    ID вида -100xxxxxxxxxx (часто начинается с -100).")
+        print(f"    Enter — использовать ID администратора ({chat_id})")
+        print()
+
+        while True:
+            notify_raw = _read_input(
+                "Chat ID для оповещений/отчётов", str(chat_id)
+            ).strip()
+            notify_id = _parse_telegram_chat_id(notify_raw)
+            if notify_id is not None:
+                break
+            _print_error("Ожидается число, например -1004236177640")
 
         print()
         _print_info("Проверка соединения...")
-        try:
-            resp = httpx.post(
-                f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": chat_id, "text": "✅ f2b-manager: Chat ID обновлён"},
-                timeout=10,
+        ok_admin, err_admin = _send_telegram_test(
+            token, chat_id, "✅ f2b-manager: Chat ID администратора обновлён"
+        )
+        if ok_admin:
+            _print_success(f"Тест администратору ({chat_id}) успешен")
+        else:
+            _print_warning(f"Тест администратору не прошёл: {err_admin}")
+
+        if notify_id != chat_id:
+            ok_n, err_n = _send_telegram_test(
+                token,
+                notify_id,
+                "✅ f2b-manager: оповещения и отчёты будут приходить сюда",
             )
-            if resp.status_code == 200 and resp.json().get("ok"):
-                _print_success("Тест соединения успешен")
+            if ok_n:
+                _print_success(f"Тест в канал/чат оповещений ({notify_id}) успешен")
             else:
-                _print_warning("Тестовое сообщение не отправлено, но настройки всё равно будут сохранены")
-        except Exception as e:
-            _print_warning(f"Тест не удался: {e}")
+                _print_warning(
+                    f"Тест в {notify_id} не прошёл: {err_n}\n"
+                    f"    Убедитесь, что бот добавлен в канал как администратор "
+                    f"с правом писать сообщения."
+                )
+                if not _confirm("Всё равно сохранить настройки?"):
+                    print(f"  {C_DIM}Отменено{C_RESET}")
+                    _read_input("Нажмите Enter для возврата")
+                    return
 
         print()
         _print_info("Сохранение...")
         from .config import save_config
-        self._config.telegram.admin_chat_ids = [chat_id] + extra_ids
-        self._config.telegram.notify_chat_id = chat_id
-        if extra_ids:
-            self._config.telegram.operator_chat_ids = extra_ids
+        self._config.telegram.admin_chat_ids = [chat_id] + [
+            i for i in extra_ids if i != chat_id
+        ]
+        self._config.telegram.notify_chat_id = notify_id
+        self._config.telegram.operator_chat_ids = [
+            i for i in extra_ids if i != chat_id
+        ]
         save_config(self._config, self._config_path)
-        _print_success("Chat ID обновлён")
+        _print_success(
+            f"Сохранено: admin={chat_id}, notify={notify_id}"
+        )
 
         print()
         _print_info("Чтобы изменения вступили в силу, нужно перезапустить службу")
@@ -965,7 +1045,6 @@ class InteractiveMenu:
         print("    3. Скопируйте Bot Token (формат: 123456789:ABCdef...)")
         print()
 
-        # Если token уже есть — показать и разрешить пропуск Enter'ом
         existing = self._config.telegram.bot_token
         if existing:
             existing_masked = existing[:8] + "****" if len(existing) > 16 else ""
@@ -984,68 +1063,94 @@ class InteractiveMenu:
         _print_success("Формат Token корректен")
         print()
 
-        print(f"  {C_BOLD}[Шаг 2] Узнайте свой Chat ID{C_RESET}")
+        print(f"  {C_BOLD}[Шаг 2] Личный Chat ID администратора{C_RESET}")
         print("    1. В Telegram найдите @userinfobot")
         print("    2. Отправьте любое сообщение")
-        print("    3. Бот ответит User ID (только цифры)")
+        print("    3. Бот ответит User ID (положительное число)")
+        print("    Этот ID нужен для команд (/status, /ban и т.д.)")
         print()
 
         while True:
-            chat_id_raw = _read_input("Введите ваш Telegram Chat ID (только цифры)").strip()
+            chat_id_raw = _read_input(
+                "Chat ID администратора (число)"
+            ).strip()
             if not chat_id_raw:
                 print(f"  {C_DIM}Отменено{C_RESET}")
                 _read_input("Нажмите Enter для возврата")
                 return
-            if chat_id_raw.isdigit():
+            chat_id = _parse_telegram_chat_id(chat_id_raw)
+            if chat_id is not None:
                 break
-            _print_error("Chat ID должен состоять только из цифр")
-        chat_id = int(chat_id_raw)
-        print()
-
-        # Необязательно: операторы
-        extra = _read_input("Доп. Chat ID операторов (необязательно, Enter — пропуск)").strip()
-        extra_ids = []
-        if extra:
-            for eid in extra.split(","):
-                eid = eid.strip()
-                if eid.isdigit():
-                    extra_ids.append(int(eid))
-        print()
-
-        print(f"  {C_BOLD}[Шаг 3] Проверка соединения{C_RESET}")
-        _print_info("Отправка тестового сообщения в Telegram...")
-
-        send_ok = False
-        try:
-            resp = httpx.post(
-                f"https://api.telegram.org/bot{token}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": (
-                        "✅ Тест настройки f2b-manager успешен!\n\n"
-                        "Бот готов: оповещения о блокировках будут приходить автоматически."
-                    ),
-                },
-                timeout=10,
+            _print_error("Ожидается число, например 6469544279")
+        if chat_id < 0:
+            _print_warning(
+                "Отрицательный ID — канал/группа. Для команд удобнее личный User ID."
             )
-            data = resp.json() if resp.status_code == 200 else {}
-            if data.get("ok"):
-                send_ok = True
-                _print_success("Тестовое сообщение отправлено — проверьте Telegram")
+        print()
+
+        extra = _read_input(
+            "Доп. Chat ID операторов (через запятую, Enter — пропуск)"
+        ).strip()
+        extra_ids = _parse_chat_id_list(extra) if extra else []
+        print()
+
+        print(f"  {C_BOLD}[Шаг 3] Куда слать оповещения и отчёты{C_RESET}")
+        print("    Можно указать канал или группу — тогда отчёты и баны")
+        print("    будут приходить туда (бот должен быть админом канала).")
+        print("    ID канала обычно вида -100xxxxxxxxxx")
+        print(f"    Enter — слать администратору ({chat_id})")
+        print()
+
+        while True:
+            notify_raw = _read_input(
+                "Chat ID для оповещений/отчётов", str(chat_id)
+            ).strip()
+            notify_id = _parse_telegram_chat_id(notify_raw)
+            if notify_id is not None:
+                break
+            _print_error("Ожидается число, например -1004236177640")
+        print()
+
+        print(f"  {C_BOLD}[Шаг 4] Проверка соединения{C_RESET}")
+        _print_info("Отправка тестовых сообщений в Telegram...")
+
+        send_ok = True
+        ok_admin, err_admin = _send_telegram_test(
+            token,
+            chat_id,
+            (
+                "✅ Тест настройки f2b-manager успешен!\n\n"
+                "Вы администратор: команды боту пишите в личку."
+            ),
+        )
+        if ok_admin:
+            _print_success(f"Тест администратору ({chat_id}) — OK")
+        else:
+            send_ok = False
+            _print_error(f"Тест администратору не прошёл: {err_admin}")
+
+        if notify_id != chat_id:
+            ok_n, err_n = _send_telegram_test(
+                token,
+                notify_id,
+                (
+                    "✅ f2b-manager: этот чат выбран для оповещений и отчётов.\n"
+                    "Блокировки IP и плановые сводки будут приходить сюда."
+                ),
+            )
+            if ok_n:
+                _print_success(f"Тест в канал/чат оповещений ({notify_id}) — OK")
             else:
-                _print_error(
-                    f"Не удалось отправить тестовое сообщение: "
-                    f"{data.get('description', resp.text[:200])}"
-                )
-        except Exception as e:
-            _print_error(f"Не удалось отправить тестовое сообщение: {e}")
+                send_ok = False
+                _print_error(f"Тест в {notify_id} не прошёл: {err_n}")
 
         if not send_ok:
             print()
             print(f"  {C_YELLOW}Возможные причины:{C_RESET}")
             print("    - Token неверный или устарел")
             print("    - Chat ID неверный")
-            print("    - Сначала нужно написать боту любое сообщение в Telegram")
+            print("    - Сначала напишите боту /start в личку")
+            print("    - Для канала: добавьте бота админом с правом писать")
             print("    - На VPS нет доступа к Telegram API")
 
         print()
@@ -1054,19 +1159,23 @@ class InteractiveMenu:
             _read_input("Нажмите Enter для возврата")
             return
 
-        # Сохранение конфигурации
         print()
         _print_info("Сохранение конфигурации...")
 
         from .config import save_config
         self._config.telegram.bot_token = token
-        self._config.telegram.admin_chat_ids = [chat_id] + extra_ids
-        self._config.telegram.notify_chat_id = chat_id
-        if extra_ids:
-            self._config.telegram.operator_chat_ids = extra_ids
+        self._config.telegram.admin_chat_ids = [chat_id] + [
+            i for i in extra_ids if i != chat_id
+        ]
+        self._config.telegram.notify_chat_id = notify_id
+        self._config.telegram.operator_chat_ids = [
+            i for i in extra_ids if i != chat_id
+        ]
 
         save_config(self._config, self._config_path)
         _print_success(f"Конфигурация сохранена: {self._config_path}")
+        print(f"  {C_DIM}admin_chat_ids: {[chat_id] + extra_ids}{C_RESET}")
+        print(f"  {C_DIM}notify_chat_id: {notify_id}{C_RESET}")
 
         print()
         _print_info("Настройка завершена! Чтобы применить изменения, перезапустите службу")
