@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# Тесты и покрытие
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Система
+.DS_Store
+Thumbs.db
+
+# Логи и данные времени выполнения
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Чувствительная конфигурация (создаётся при деплое, не в репозитории)
+config.yaml
+config.local.yaml
+*.secret
+
+# Внутренние документы (только локально, не в GitHub)
+设计方案.md
+模块拆分方案.md
+执行提示词.md
+交互菜单修改计划.md
+
+# WorkBuddy — рабочая память
+.workbuddy/
+install修复提示词.md

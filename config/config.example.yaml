@@ -1,0 +1,85 @@
+# Конфигурация f2b-manager
+# Путь после развёртывания: /etc/f2b-manager/config.yaml (права 600)
+
+# ── Настройка Telegram ──────────────────────
+telegram:
+  # Bot Token (получите у @BotFather)
+  bot_token: "YOUR_BOT_TOKEN_HERE"
+
+  # Уровни доступа
+  admin_chat_ids: [123456789]        # Администраторы (полный доступ)
+  operator_chat_ids: []               # Операторы (запросы и управление уведомлениями)
+
+  # chat_id получателя оповещений и отчётов
+  notify_chat_id: 123456789
+
+  # Режим работы: polling (рекомендуется) | webhook
+  mode: polling
+  webhook:
+    url: ""
+    port: 8443
+
+  # Ограничение частоты сообщений (защита от спама)
+  rate_limit:
+    max_messages_per_minute: 20
+    cooldown_on_burst: 60             # Пауза в секундах после всплеска
+
+# ── Настройка Fail2ban ──────────────────────
+fail2ban:
+  default_bantime: "1h"
+  default_findtime: "10m"
+  default_maxretry: 5
+
+  # Прогрессивная блокировка (повторные нарушения блокируются дольше)
+  incremental: true
+  max_bantime: "1w"
+
+  # Белый список IP
+  ignoreip:
+    - "127.0.0.1/8"
+    - "::1"
+
+  # Включённые jail
+  enabled_jails:
+    - sshd
+    # - nginx-http-auth
+    # - nginx-noscript
+
+# ── Планировщик задач ────────────────────────
+schedule:
+  daily_report:
+    enabled: true
+    time: "08:00"
+  weekly_report:
+    enabled: true
+    day: "monday"                     # monday/tuesday/.../sunday
+    time: "08:00"
+  poll_interval_minutes: 5            # Интервал резервного polling
+  health_check_minutes: 10            # Интервал проверки работоспособности
+
+# ── Настройки уведомлений ────────────────────
+notify:
+  enable_ban_alert: true              # Уведомлять о блокировке
+  enable_unban_alert: false           # По умолчанию не уведомлять о разблокировке
+  enable_service_alert: true          # Уведомлять о запуске и остановке сервиса
+  enable_health_alert: true           # Уведомлять о проблемах проверки работоспособности
+
+  # Определение местоположения IP
+  geoip:
+    enabled: true
+    method: local                     # local (mmdb) | api (ip-api.com)
+    db_path: "/var/lib/GeoIP/GeoLite2-Country.mmdb"
+
+  # Объединение всплесков блокировок (одно уведомление для одного IP)
+  dedup_window_seconds: 300
+
+# ── Журналирование ───────────────────────────
+logging:
+  level: INFO                         # DEBUG | INFO | WARNING | ERROR
+  file: "/var/log/f2b-manager.log"
+  max_size_mb: 10
+  backup_count: 5
+
+# ── База состояния ───────────────────────────
+database:
+  path: "/var/lib/f2b-manager/state.db"

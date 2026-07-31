@@ -1,0 +1,56 @@
+# Шаблон jail.local для f2b-manager
+# Путь после развёртывания: /etc/fail2ban/jail.local
+#
+# Этот файл автоматически создаётся config_builder из f2b-manager.
+# Переменные:
+#   ${bantime}       - длительность блокировки (например, 1h)
+#   ${findtime}      - интервал анализа (например, 10m)
+#   ${maxretry}      - максимальное число попыток
+#   ${ignoreip}      - белый список IP (через пробел)
+#   ${max_bantime}   - максимальная длительность прогрессивной блокировки
+#   ${enabled_jails} - список включённых jail
+#
+# Внимание: telegram-notify автоматически добавляется в action каждого jail,
+#            чтобы fail2ban отправлял Telegram-уведомления при ban/unban.
+
+[DEFAULT]
+
+# ── Глобальная конфигурация по умолчанию ──
+bantime  = ${bantime}
+findtime = ${findtime}
+maxretry = ${maxretry}
+
+# Белый список IP (не блокируется)
+ignoreip = ${ignoreip}
+
+# Действие блокировки
+banaction = %(banaction)s
+
+# Цепочка action по умолчанию
+# telegram-notify добавляется отдельно в action каждого jail
+action = %(action_)s
+
+# ── Прогрессивная блокировка (необязательно) ──
+# При включении: длительность блокировки удваивается при каждом нарушении с того же IP
+# bantime.increment = true
+# bantime.rndtime   = 10m
+# bantime.factor    = 2
+# bantime.maxtime   = ${max_bantime}
+
+
+# ── Настройка Jail ─────────────────────────────
+# Здесь перечислены только включённые jail; добавьте пользовательские jail ниже.
+# В action каждого jail необходимо добавить telegram-notify.
+
+${jail_sections}
+
+# ── Пользовательские Jail ───────────────────────
+# Пример: защита входа WordPress
+# [wordpress]
+# enabled  = true
+# port     = http,https
+# filter   = wordpress
+# logpath  = /var/log/nginx/access.log
+# maxretry = 3
+# action   = %(action_)s
+#            telegram-notify
