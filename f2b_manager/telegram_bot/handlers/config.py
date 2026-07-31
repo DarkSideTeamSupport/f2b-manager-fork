@@ -74,9 +74,14 @@ async def cmd_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     sub = context.args[0].lower()
 
+    msg = update.effective_message
+    if msg is None:
+        return
+
     if sub in ("add", "remove", "del", "delete") and len(context.args) < 2:
-        await update.message.reply_text(
-            format_error("Использование: /whitelist add|remove <ip>"), parse_mode="HTML"
+        await msg.reply_text(
+            format_error("Использование: /whitelist add|remove &lt;ip&gt;"),
+            parse_mode="HTML",
         )
         return
 
@@ -85,25 +90,36 @@ async def cmd_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     elif sub in ("remove", "del", "delete"):
         await _whitelist_remove(update, context, deps)
     else:
-        await update.message.reply_text(
+        await msg.reply_text(
             format_error(
                 "Использование:\n"
                 "  /whitelist              — показать белый список\n"
-                "  /whitelist add <ip>     — добавить IP в белый список\n"
-                "  /whitelist remove <ip>  — удалить IP из белого списка"
+                "  /whitelist add &lt;ip&gt;     — добавить IP в белый список\n"
+                "  /whitelist remove &lt;ip&gt;  — удалить IP из белого списка"
             ),
             parse_mode="HTML",
         )
 
 
+def _normalize_ip_list(value) -> list[str]:
+    """Приводит ignoreip из конфига/БД к списку строк."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [ip.strip() for ip in value.replace(";", ",").split(",") if ip.strip()]
+    if isinstance(value, (list, tuple, set)):
+        return [str(ip).strip() for ip in value if str(ip).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
 def _get_whitelist(deps) -> list[str]:
     """Читает белый список из db (config_overrides)."""
-    if deps.db is None:
-        return list(deps.config.fail2ban.ignoreip)
-    raw = deps.db.get_config_override(KEY_WHITELIST, "")
-    if raw:
-        return [ip.strip() for ip in raw.split(",") if ip.strip()]
-    return list(deps.config.fail2ban.ignoreip)
+    if deps.db is not None:
+        raw = deps.db.get_config_override(KEY_WHITELIST, "")
+        if raw:
+            return _normalize_ip_list(raw)
+    ignoreip = getattr(getattr(deps.config, "fail2ban", None), "ignoreip", None)
+    return _normalize_ip_list(ignoreip)
 
 
 def _set_whitelist(deps, ips: list[str]) -> None:
@@ -115,6 +131,10 @@ def _set_whitelist(deps, ips: list[str]) -> None:
 
 async def _show_whitelist(update, deps) -> None:
     """Показывает текущий белый список."""
+    msg = update.effective_message
+    if msg is None:
+        return
+
     ips = _get_whitelist(deps)
 
     lines = ["\U0001f6e1\ufe0f <b>Белый список IP</b>", ""]
@@ -123,29 +143,33 @@ async def _show_whitelist(update, deps) -> None:
         lines.append("Белый список пуст")
     else:
         for i, ip in enumerate(ips, 1):
-            lines.append(f"  {i}. <code>{esc(ip)}</code>")
+            lines.append(f"  {i}. <code>{esc(str(ip))}</code>")
 
     lines.append("")
-    lines.append("Использование: /whitelist add|remove <ip>")
+    lines.append("Использование: /whitelist add|remove &lt;ip&gt;")
 
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+    await msg.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def _whitelist_add(update, context, deps) -> None:
     """Добавляет IP в белый список."""
     from .ban import validate_ip
 
+    msg = update.effective_message
+    if msg is None:
+        return
+
     ip = context.args[1].strip()
 
     if not validate_ip(ip):
-        await update.message.reply_text(
+        await msg.reply_text(
             format_error(f"Недопустимый IP-адрес: {ip}"), parse_mode="HTML"
         )
         return
 
     ips = _get_whitelist(deps)
     if ip in ips:
-        await update.message.reply_text(
+        await msg.reply_text(
             format_error(f"{ip} уже находится в белом списке"), parse_mode="HTML"
         )
         return
@@ -153,14 +177,14 @@ async def _whitelist_add(update, context, deps) -> None:
     ips.append(ip)
     _set_whitelist(deps, ips)
 
-    await update.message.reply_text(
+    await msg.reply_text(
         format_success(f"{ip} добавлен в белый список\n\nВсего IP в белом списке: {len(ips)}"),
         parse_mode="HTML",
     )
 
     # Напоминаем о необходимости перезагрузки.
     if deps.f2b_manager is not None:
-        await update.message.reply_text(
+        await msg.reply_text(
             "\u2139\ufe0f Белый список сохранён. Выполните команду /reload, чтобы применить изменения.",
             parse_mode="HTML",
         )
@@ -168,11 +192,15 @@ async def _whitelist_add(update, context, deps) -> None:
 
 async def _whitelist_remove(update, context, deps) -> None:
     """Удаляет IP из белого списка."""
+    msg = update.effective_message
+    if msg is None:
+        return
+
     ip = context.args[1].strip()
 
     ips = _get_whitelist(deps)
     if ip not in ips:
-        await update.message.reply_text(
+        await msg.reply_text(
             format_error(f"{ip} отсутствует в белом списке"), parse_mode="HTML"
         )
         return
@@ -180,7 +208,7 @@ async def _whitelist_remove(update, context, deps) -> None:
     ips.remove(ip)
     _set_whitelist(deps, ips)
 
-    await update.message.reply_text(
+    await msg.reply_text(
         format_success(f"{ip} удалён из белого списка\n\nВсего IP в белом списке: {len(ips)}"),
         parse_mode="HTML",
     )

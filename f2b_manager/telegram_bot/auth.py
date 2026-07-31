@@ -119,15 +119,18 @@ async def ensure_authorized(
     required: AuthLevel,
 ) -> bool:
     """Проверяет доступ и уведомляет пользователя при его отсутствии."""
+    # В личке chat.id == user.id; в группах права смотрим по user.id.
+    user = update.effective_user
     chat = update.effective_chat
     auth = _get_auth(context)
-    if chat is not None and auth is not None and auth.authorize(chat.id, required):
+    auth_id = user.id if user is not None else (chat.id if chat is not None else None)
+    if auth_id is not None and auth is not None and auth.authorize(auth_id, required):
         return True
 
-    chat_id = chat.id if chat is not None else "неизвестен"
     logger.warning(
-        "Несанкционированный доступ: chat_id=%s, требуемый уровень=%s",
-        chat_id,
+        "Несанкционированный доступ: user_id=%s chat_id=%s, требуемый уровень=%s",
+        getattr(user, "id", None),
+        getattr(chat, "id", None),
         required.name,
     )
     await notify_denied(update, required)
