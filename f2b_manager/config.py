@@ -19,6 +19,26 @@ from typing import Any, Optional
 
 import yaml
 
+# Значения из config.example.yaml — не настоящий токен BotFather
+_PLACEHOLDER_TOKENS = frozenset({
+    "YOUR_BOT_TOKEN_HERE",
+    "CHANGEME",
+    "CHANGE_ME",
+    "TODO",
+    "<TOKEN>",
+})
+
+
+def is_placeholder_bot_token(token: str) -> bool:
+    """True, если токен пустой или оставлен из шаблона конфига."""
+    value = (token or "").strip()
+    if not value:
+        return True
+    upper = value.upper()
+    if upper in _PLACEHOLDER_TOKENS or value in _PLACEHOLDER_TOKENS:
+        return True
+    return "YOUR_BOT" in upper or "TOKEN_HERE" in upper
+
 
 @dataclass
 class TelegramConfig:
@@ -185,8 +205,11 @@ class AppConfig:
         """Проверить конфиг; вернуть список ошибок (пустой — всё ок)."""
         errors: list[str] = []
 
-        if not self.telegram.bot_token:
-            errors.append("telegram.bot_token не задан")
+        if is_placeholder_bot_token(self.telegram.bot_token):
+            errors.append(
+                "telegram.bot_token не задан или оставлен шаблон YOUR_BOT_TOKEN_HERE — "
+                "укажите токен от @BotFather (команда f2b, пункт [4])"
+            )
         if self.telegram.notify_chat_id == 0:
             errors.append("telegram.notify_chat_id не задан")
         if not self.telegram.admin_chat_ids:

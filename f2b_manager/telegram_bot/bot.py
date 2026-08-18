@@ -18,7 +18,7 @@ import logging
 from typing import TYPE_CHECKING, Optional
 
 from telegram import Update
-from telegram.error import Forbidden, NetworkError, TelegramError
+from telegram.error import Forbidden, InvalidToken, NetworkError, TelegramError
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -27,7 +27,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from ..config import AppConfig
+from ..config import AppConfig, is_placeholder_bot_token
 from ..storage.database import StateDB
 from ..storage.models import (
     AuthLevel,
@@ -108,9 +108,9 @@ class F2BTelegramBot(IMessageSender):
         self._application: Optional[Application] = None
         self._initialized = False
 
-        # Сборка Application, если token задан
+        # Сборка Application, если задан настоящий token
         token = config.telegram.bot_token
-        if token:
+        if token and not is_placeholder_bot_token(token):
             self._application = (
                 ApplicationBuilder()
                 .token(token)
@@ -121,8 +121,8 @@ class F2BTelegramBot(IMessageSender):
             logger.info("Telegram Bot Application собран")
         else:
             logger.warning(
-                "telegram.bot_token не задан, Bot работает в mock-режиме "
-                "(polling недоступен, но send_alert/send_report можно использовать в тестах)"
+                "telegram.bot_token не задан или это шаблон YOUR_BOT_TOKEN_HERE. "
+                "Укажите токен от @BotFather (f2b → [4]). Polling не запускается."
             )
 
     # ──────────────────────────────────────────
@@ -334,8 +334,17 @@ class F2BTelegramBot(IMessageSender):
 
         logger.info("Запуск Telegram Bot (режим: %s)...", mode)
 
-        # Инициализация
-        await app.initialize()
+        try:
+            await app.initialize()
+        except InvalidToken:
+            logger.error(
+                "Токен Telegram отклонён сервером. "
+                "В %s сейчас шаблон или неверный bot_token. "
+                "Откройте f2b → [4], укажите токен от @BotFather и перезапустите службу.",
+                self.config.config_path or "/etc/f2b-manager/config.yaml",
+            )
+            return
+
         self._initialized = True
         logger.info("Bot инициализирован")
 
