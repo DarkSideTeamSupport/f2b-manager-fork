@@ -19,8 +19,9 @@ import shutil
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Union
 
-from ..config import Fail2banConfig
+from ..config import AppConfig, Fail2banConfig
 from ..storage.models import InstallResult, DistroInfo
 from ..utils.distro import (
     detect_distro,
@@ -64,7 +65,9 @@ class Fail2banInstaller:
         Path(_NOTIFY_SCRIPT_PATH).parent,
     ]
 
-    def __init__(self, config: Fail2banConfig):
+    def __init__(self, config: Union[Fail2banConfig, AppConfig]):
+        if isinstance(config, AppConfig):
+            config = config.fail2ban
         self._config = config
         self._builder = JailConfigBuilder(config)
         self._distro_info: DistroInfo | None = None

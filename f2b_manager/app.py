@@ -69,7 +69,7 @@ class Application:
             from .fail2ban.manager import Fail2banManager
             from .fail2ban.installer import Fail2banInstaller
             self._f2b_manager = Fail2banManager()
-            self._f2b_installer = Fail2banInstaller(self.config)
+            self._f2b_installer = Fail2banInstaller(self.config.fail2ban)
             self.logger.info("Модуль управления Fail2ban загружен")
         except ImportError:
             self.logger.debug("Модуль управления Fail2ban ещё не реализован (M1)")

@@ -198,7 +198,7 @@ def _cmd_run(config, args) -> int:
     if errors:
         for e in errors:
             logger.error("Ошибка конфигурации: %s", e)
-        logger.error("Исправьте файл конфигурации и повторите попытку")
+        logger.error("Исправьте /etc/f2b-manager/config.yaml (telegram.bot_token) или выполните: f2b")
         return 1
 
     logger.info("Проверка конфигурации пройдена")
@@ -235,7 +235,7 @@ def _cmd_fail2ban(config, args) -> int:
 
     try:
         from .fail2ban.installer import Fail2banInstaller
-        installer = Fail2banInstaller(config)
+        installer = Fail2banInstaller(config.fail2ban)
     except ImportError:
         logger.warning("Модуль управления Fail2ban ещё не реализован (Wave 2 M1)")
         return 0
