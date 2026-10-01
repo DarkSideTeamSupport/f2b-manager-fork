@@ -23,12 +23,10 @@ maxretry = ${maxretry}
 # Белый список IP (не блокируется)
 ignoreip = ${ignoreip}
 
-# Действие блокировки
-banaction = %(banaction)s
-
-# Цепочка action по умолчанию
-# telegram-notify добавляется отдельно в action каждого jail
-action = %(action_)s
+# Действие блокировки и цепочка action_ — из /etc/fail2ban/jail.conf.
+# Не пишите сюда: banaction = %(banaction)s  или  action = %(action_)s
+# (самоссылка → Recursion limit exceeded).
+# telegram-notify добавляется отдельно в action каждого jail.
 
 # ── Прогрессивная блокировка (необязательно) ──
 # При включении: длительность блокировки удваивается при каждом нарушении с того же IP
@@ -53,4 +51,4 @@ ${jail_sections}
 # logpath  = /var/log/nginx/access.log
 # maxretry = 3
 # action   = %(action_)s
-#            telegram-notify
+#            telegram-notify[name=%(__name__)s]

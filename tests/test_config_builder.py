@@ -60,15 +60,12 @@ class TestDefaultSection:
         output = builder.generate_jail_local()
         assert "ignoreip = 127.0.0.1/8 ::1" in output
 
-    def test_contains_banaction(self, builder):
-        """Сегмент DEFAULT содержит banaction."""
+    def test_no_recursive_banaction_or_action(self, builder):
+        """В DEFAULT нельзя писать banaction/action = %(banaction/action_)s — recursion."""
         output = builder.generate_jail_local()
-        assert "banaction = %(banaction)s" in output
-
-    def test_contains_action(self, builder):
-        """Сегмент DEFAULT содержит action."""
-        output = builder.generate_jail_local()
-        assert "action = %(action_)s" in output
+        default = output.split("[sshd]")[0]
+        assert "banaction = %(banaction)s" not in default
+        assert "action = %(action_)s" not in default
 
     def test_incremental_bantime_config(self, builder):
         """Настройте, когда включен дополнительный бан."""
@@ -77,7 +74,7 @@ class TestDefaultSection:
         assert "bantime.rndtime = 10m" in output
         assert "bantime.factor = 2" in output
         assert "bantime.maxtime = 1w" in output
-        assert "поэтапный запрет" in output
+        assert "Нарастающий бан" in output
 
     def test_no_incremental_config(self, builder_no_incremental):
         """При отключении добавочного запрета соответствующая конфигурация не включается."""
@@ -119,8 +116,8 @@ class TestTelegramAction:
     def test_action_format(self, builder):
         """Строка action имеет правильный формат."""
         output = builder.generate_jail_local()
-        # Должен содержать форму %(action_)s и telegram-notify.
         assert "action = %(action_)s" in output
+        assert "telegram-notify[name=%(__name__)s]" in output
 
 
 class TestCustomJail:

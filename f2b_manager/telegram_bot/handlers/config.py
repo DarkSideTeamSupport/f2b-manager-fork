@@ -673,6 +673,17 @@ async def _set_f2b_param(query, deps, target: str, val: str) -> None:
         return
 
     dbkey, label = key_map[target]
+    cfg = _read_f2b_config(deps)
+    if cfg["incremental"] and target in ("bantime", "maxbt"):
+        from f2b_manager.utils.duration import incremental_bantime_valid
+
+        next_ban = val if target == "bantime" else cfg["bantime"]
+        next_max = val if target == "maxbt" else cfg["max_bantime"]
+        ok, err = incremental_bantime_valid(next_ban, next_max)
+        if not ok:
+            await query.answer(err[:180], show_alert=True)
+            return
+
     deps.db.set_config_override(dbkey, val)
     await query.answer(f"{label}: {val}")
     await _refresh_f2bconfig(query, deps)
@@ -686,6 +697,13 @@ async def _toggle_incremental(query, deps) -> None:
 
     cfg = _read_f2b_config(deps)
     new_val = "off" if cfg["incremental"] else "on"
+    if new_val == "on":
+        from f2b_manager.utils.duration import incremental_bantime_valid
+
+        ok, err = incremental_bantime_valid(cfg["bantime"], cfg["max_bantime"])
+        if not ok:
+            await query.answer(err[:180], show_alert=True)
+            return
     deps.db.set_config_override(KEY_F2B_INCREMENTAL, new_val)
     await query.answer(
         f"Нарастающая блокировка {'включена' if new_val == 'on' else 'выключена'}"
@@ -701,6 +719,14 @@ async def _apply_f2b_config(query, deps) -> None:
 
     cfg = _read_f2b_config(deps)
     try:
+        if cfg["incremental"]:
+            from f2b_manager.utils.duration import incremental_bantime_valid
+
+            ok, err = incremental_bantime_valid(cfg["bantime"], cfg["max_bantime"])
+            if not ok:
+                await query.answer(err[:180], show_alert=True)
+                return
+
         # Пересоздаём jail.local через config_builder установщика
         installer = deps.get_installer()
         if installer is not None and hasattr(installer, "_builder"):
@@ -716,8 +742,14 @@ async def _apply_f2b_config(query, deps) -> None:
             with open("/etc/fail2ban/jail.local", "w") as f:
                 f.write(jail_content)
             # Перезагрузка fail2ban
-            deps.f2b_manager.reload()
-            await query.answer("Конфигурация применена, fail2ban перезагружен", show_alert=True)
+            if deps.f2b_manager.reload():
+                await query.answer("Конфигурация применена, fail2ban перезагружен", show_alert=True)
+            else:
+                await query.answer(
+                    "jail.local записан, но reload вернул ошибку. "
+                    "Проверьте: fail2ban-client -t",
+                    show_alert=True,
+                )
         else:
             await query.answer("Установщик не готов, сгенерировать конфигурацию нельзя", show_alert=True)
     except Exception as e:

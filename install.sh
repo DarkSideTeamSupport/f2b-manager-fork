@@ -255,7 +255,7 @@ if [ -d /etc/fail2ban/action.d ]; then
         if [ -f /etc/fail2ban/jail.local ] && ! grep -q 'telegram-notify' /etc/fail2ban/jail.local; then
             warn "Action telegram-notify не настроен в jail.local, добавление..."
             # Добавить строку action в раздел sshd
-            sed -i '/^\[sshd\]/a\action = %(action_)s\n         telegram-notify' /etc/fail2ban/jail.local
+            sed -i '/^\[sshd\]/a\action = %(action_)s\n         telegram-notify[name=%(__name__)s]' /etc/fail2ban/jail.local
             if command -v fail2ban-client >/dev/null 2>&1; then
                 fail2ban-client reload 2>/dev/null || warn "Не удалось перезагрузить fail2ban. Выполните вручную: fail2ban-client reload"
             fi

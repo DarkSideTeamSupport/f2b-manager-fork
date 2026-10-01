@@ -61,7 +61,7 @@ CB_F2BCFG = "f2bcfg"
 BANTIME_PRESETS = ["10m", "30m", "1h", "2h", "6h", "12h", "1d", "7d"]
 FINDTIME_PRESETS = ["5m", "10m", "30m", "1h", "2h"]
 MAXRETRY_PRESETS = ["2", "3", "5", "10", "20"]
-MAX_BANTIME_PRESETS = ["1h", "12h", "1d", "3d", "1w", "2w", "1M"]
+MAX_BANTIME_PRESETS = ["6h", "12h", "1d", "3d", "1w", "2w", "1M"]
 
 
 def f2bconfig_main_keyboard(

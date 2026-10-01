@@ -762,9 +762,10 @@ class InteractiveMenu:
             print(f"  {C_BOLD}{C_GREEN}[4]{C_RESET} {C_BOLD}Вкл./выкл. нарастающую блокировку{C_RESET}")
             print(f"   {C_DIM}Сейчас: {'вкл.' if incremental else 'выкл.'}{C_RESET}")
             print(f"  {C_BOLD}{C_GREEN}[5]{C_RESET} {C_BOLD}Изменить макс. длительность блокировки{C_RESET}")
-            print(f"   {C_DIM}Сейчас: {max_bantime}, варианты: 1h, 12h, 1d, 3d, 1w, 2w, 1M{C_RESET}")
+            print(f"   {C_DIM}Сейчас: {max_bantime}, варианты: 6h, 12h, 1d, 3d, 1w, 2w, 1M{C_RESET}")
             print(f"  {C_BOLD}{C_GREEN}[A]{C_RESET} {C_BOLD}Применить и перезагрузить fail2ban{C_RESET}")
             print(f"   {C_DIM}Пересоздать jail.local и выполнить fail2ban-client reload{C_RESET}")
+            print(f"   {C_DIM}При нарастающем бане макс. длительность должна быть >= базовой{C_RESET}")
             print(f"  {C_BOLD}{C_GREEN}[0]{C_RESET} {C_BOLD}Назад{C_RESET}")
             print(f"   {C_DIM}Вернуться в главное меню{C_RESET}")
             print()
@@ -802,7 +803,7 @@ class InteractiveMenu:
                 1: ("f2b_findtime", ["5m", "10m", "30m", "1h", "2h"], "Окно обнаружения"),
                 2: ("f2b_maxretry", ["2", "3", "5", "10", "20"], "Макс. число попыток"),
                 3: None,  # переключатель, отдельная обработка
-                4: ("f2b_max_bantime", ["1h", "12h", "1d", "3d", "1w", "2w", "1M"], "Макс. длительность блокировки"),
+                4: ("f2b_max_bantime", ["6h", "12h", "1d", "3d", "1w", "2w", "1M"], "Макс. длительность блокировки"),
             }
 
             if idx == 3:
@@ -835,6 +836,18 @@ class InteractiveMenu:
             choice = _read_choice("Выберите", [str(i) for i in range(1, len(presets) + 1)], default=0)
             if 0 <= choice < len(presets):
                 val = presets[choice]
+                # Черновик: при нарастающем бане макс. ≥ базовой
+                from .utils.duration import incremental_bantime_valid
+
+                next_ban = val if dbkey == "f2b_bantime" else bantime
+                next_max = val if dbkey == "f2b_max_bantime" else max_bantime
+                next_inc = incremental
+                if next_inc:
+                    ok, err = incremental_bantime_valid(next_ban, next_max)
+                    if not ok:
+                        _print_error(err)
+                        _read_input("Нажмите Enter для продолжения")
+                        continue
                 db.set_config_override(dbkey, val)
                 _print_success(f"{label} установлено: {val}")
 
@@ -874,14 +887,29 @@ class InteractiveMenu:
                 if inc:
                     fc.incremental = inc == "on"
 
+            if fc.incremental:
+                from .utils.duration import incremental_bantime_valid
+
+                ok, err = incremental_bantime_valid(fc.default_bantime, fc.max_bantime)
+                if not ok:
+                    _print_error(err)
+                    return
+
             jail_content = self._f2b_installer._builder.generate_jail_local()
             with open("/etc/fail2ban/jail.local", "w") as f:
                 f.write(jail_content)
             _print_success("jail.local пересоздан")
 
             if self._f2b_manager is not None:
-                self._f2b_manager.reload()
-                _print_success("fail2ban перезагружен")
+                if self._f2b_manager.reload():
+                    _print_success("fail2ban перезагружен")
+                else:
+                    _print_error(
+                        "fail2ban-client reload вернул ошибку. "
+                        "Проверьте: fail2ban-client -t  и journalctl -u fail2ban -n 50"
+                    )
+            else:
+                _print_error("Менеджер fail2ban не готов — reload не выполнен")
         except Exception as e:
             _print_error(f"Не удалось применить конфигурацию: {e}")
 

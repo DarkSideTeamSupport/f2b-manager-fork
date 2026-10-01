@@ -131,9 +131,10 @@ class JailConfigBuilder:
         ignoreip = " ".join(cfg.ignoreip)
         lines.append(f"ignoreip = {ignoreip}")
 
-        lines.append("banaction = %(banaction)s")
-        # Базовый action; telegram-notify добавляется в секциях jail
-        lines.append("action = %(action_)s")
+        # Не задаём banaction/action в DEFAULT через %(banaction)s / %(action_)s —
+        # это самоссылка и даёт Recursion limit в fail2ban-client -t.
+        # Базовые action_ / banaction берутся из /etc/fail2ban/jail.conf;
+        # telegram-notify добавляем только в секциях jail ниже.
 
         if cfg.incremental:
             lines.append("")
@@ -153,7 +154,7 @@ class JailConfigBuilder:
 
         action_line = (
             "action = %(action_)s\n"
-            "         telegram-notify"
+            "         telegram-notify[name=%(__name__)s]"
         )
         return preset.rstrip() + "\n" + action_line
 
@@ -165,7 +166,7 @@ class JailConfigBuilder:
             filter  = {jail_name}
             logpath = /var/log/{jail_name}.log
             action  = %(action_)s
-                      telegram-notify
+                      telegram-notify[name=%(__name__)s]
         """)
 
     def generate_telegram_action(self) -> str:
