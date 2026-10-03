@@ -93,6 +93,28 @@ class TestJailSection:
         assert "enabled = true" in output
         assert "port    = ssh" in output
 
+    def test_sshd_uses_systemd_without_auth_log(self, builder, monkeypatch):
+        """Без auth.log/secure — backend=systemd (Ubuntu journald-only)."""
+        monkeypatch.setattr(
+            "f2b_manager.fail2ban.config_builder._sshd_uses_systemd_journal",
+            lambda: True,
+        )
+        output = builder.generate_jail_local()
+        sshd = output.split("[sshd]", 1)[1].split("[", 1)[0]
+        assert "backend = systemd" in sshd
+        assert "logpath" not in sshd
+
+    def test_sshd_uses_logpath_when_auth_log_exists(self, builder, monkeypatch):
+        """При наличии auth.log — классический logpath/backend."""
+        monkeypatch.setattr(
+            "f2b_manager.fail2ban.config_builder._sshd_uses_systemd_journal",
+            lambda: False,
+        )
+        output = builder.generate_jail_local()
+        sshd = output.split("[sshd]", 1)[1].split("[", 1)[0]
+        assert "logpath = %(sshd_log)s" in sshd
+        assert "backend = %(sshd_backend)s" in sshd
+
     def test_recidive_jail_present(self, builder):
         """recidive jail должен появиться."""
         output = builder.generate_jail_local()

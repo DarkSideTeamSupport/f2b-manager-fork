@@ -11,6 +11,7 @@ f2b_manager.fail2ban.config_builder
 from __future__ import annotations
 
 import textwrap
+from pathlib import Path
 from typing import Optional
 
 from ..config import Fail2banConfig
@@ -18,15 +19,38 @@ from ..utils.logger import get_logger
 
 _logger = get_logger(__name__)
 
-# Предустановки jail (базовая конфигурация часто используемых jail)
-_PRESET_JAILS: dict[str, str] = {
-    "sshd": textwrap.dedent("""\
+
+def _sshd_uses_systemd_journal() -> bool:
+    """True, если нет классического auth.log/secure — читаем journald."""
+    return not any(
+        Path(p).is_file()
+        for p in ("/var/log/auth.log", "/var/log/secure")
+    )
+
+
+def _sshd_preset() -> str:
+    """Пресет sshd: systemd на хостах без auth.log (Ubuntu journald-only)."""
+    if _sshd_uses_systemd_journal():
+        _logger.info("sshd jail: backend=systemd (auth.log/secure отсутствуют)")
+        return textwrap.dedent("""\
+            [sshd]
+            enabled = true
+            port    = ssh
+            backend = systemd
+        """)
+    return textwrap.dedent("""\
         [sshd]
         enabled = true
         port    = ssh
         logpath = %(sshd_log)s
         backend = %(sshd_backend)s
-    """),
+    """)
+
+
+# Предустановки jail (базовая конфигурация часто используемых jail)
+_PRESET_JAILS: dict[str, str] = {
+    "sshd": "",  # заполняется динамически в _build_jail_section
+
     "nginx-http-auth": textwrap.dedent("""\
         [nginx-http-auth]
         enabled  = true
@@ -148,7 +172,10 @@ class JailConfigBuilder:
 
     def _build_jail_section(self, jail_name: str) -> Optional[str]:
         """Собрать секцию jail по предустановке."""
-        preset = _PRESET_JAILS.get(jail_name)
+        if jail_name == "sshd":
+            preset = _sshd_preset()
+        else:
+            preset = _PRESET_JAILS.get(jail_name)
         if preset is None:
             return None
 
